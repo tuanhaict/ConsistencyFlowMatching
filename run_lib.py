@@ -20,7 +20,7 @@ import gc
 import io
 import os
 import time
-
+import csv
 import numpy as np
 import tensorflow as tf
 import tensorflow_gan as tfgan
@@ -80,7 +80,24 @@ def train(config, workdir):
   # Resume training when intermediate checkpoints are detected
   state = restore_checkpoint(checkpoint_meta_dir, state, config.device)
   initial_step = int(state['step'])
-
+  is_resume = initial_step > 0
+  csv_path = os.path.join(workdir, "training_losses.csv")
+  
+  # Check if resuming from checkpoint
+  csv_exists = os.path.exists(csv_path)
+  if csv_exists and is_resume:
+    # Append to existing CSV file when resuming
+    csv_file = open(csv_path, 'a', newline='')
+    csv_writer = csv.writer(csv_file)
+    logging.info(f"Resuming training from step {initial_step}, appending to existing CSV")
+  else:
+    # Create new CSV file for fresh training
+    csv_file = open(csv_path, 'w', newline='')
+    csv_writer = csv.writer(csv_file)
+    csv_writer.writerow(['step', 'training_loss'])
+    logging.info(f"Starting fresh training, created new CSV file")
+  
+  csv_file.flush()
   # Build data iterators
   train_ds, eval_ds, _ = datasets.get_dataset(config,
                                               uniform_dequantization=config.data.uniform_dequantization)
@@ -130,6 +147,8 @@ def train(config, workdir):
     loss = train_step_fn(state, batch)
     if step % config.training.log_freq == 0:
       logging.info("step: %d, training_loss: %.5e" % (step, loss.item()))
+      csv_writer.writerow([step, loss.item()])
+      csv_file.flush() 
       writer.add_scalar("training_loss", loss, step)
 
     # Save a temporary checkpoint to resume training after pre-emption periodically
@@ -137,13 +156,13 @@ def train(config, workdir):
       save_checkpoint(checkpoint_meta_dir, state)
 
     # Report the loss on an evaluation dataset periodically
-    # if step % config.training.eval_freq == 0:
-    #   eval_batch = torch.from_numpy(next(eval_iter)['image']._numpy()).to(config.device).float()
-    #   eval_batch = eval_batch.permute(0, 3, 1, 2)
-    #   eval_batch = scaler(eval_batch)
-    #   eval_loss = eval_step_fn(state, eval_batch)
-    #   logging.info("step: %d, eval_loss: %.5e" % (step, eval_loss.item()))
-    #   writer.add_scalar("eval_loss", eval_loss.item(), step)
+    if step % config.training.eval_freq == 0:
+      eval_batch = torch.from_numpy(next(eval_iter)['image']._numpy()).to(config.device).float()
+      eval_batch = eval_batch.permute(0, 3, 1, 2)
+      eval_batch = scaler(eval_batch)
+      eval_loss = eval_step_fn(state, eval_batch)
+      logging.info("step: %d, eval_loss: %.5e" % (step, eval_loss.item()))
+      writer.add_scalar("eval_loss", eval_loss.item(), step)
 
     # Save a checkpoint periodically and generate samples if needed
     if (step % config.training.snapshot_freq == 0 and step > 0) or step == num_train_steps:
