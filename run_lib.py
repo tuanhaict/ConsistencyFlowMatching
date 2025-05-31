@@ -137,13 +137,13 @@ def train(config, workdir):
       save_checkpoint(checkpoint_meta_dir, state)
 
     # Report the loss on an evaluation dataset periodically
-    if step % config.training.eval_freq == 0:
-      eval_batch = torch.from_numpy(next(eval_iter)['image']._numpy()).to(config.device).float()
-      eval_batch = eval_batch.permute(0, 3, 1, 2)
-      eval_batch = scaler(eval_batch)
-      eval_loss = eval_step_fn(state, eval_batch)
-      logging.info("step: %d, eval_loss: %.5e" % (step, eval_loss.item()))
-      writer.add_scalar("eval_loss", eval_loss.item(), step)
+    # if step % config.training.eval_freq == 0:
+    #   eval_batch = torch.from_numpy(next(eval_iter)['image']._numpy()).to(config.device).float()
+    #   eval_batch = eval_batch.permute(0, 3, 1, 2)
+    #   eval_batch = scaler(eval_batch)
+    #   eval_loss = eval_step_fn(state, eval_batch)
+    #   logging.info("step: %d, eval_loss: %.5e" % (step, eval_loss.item()))
+    #   writer.add_scalar("eval_loss", eval_loss.item(), step)
 
     # Save a checkpoint periodically and generate samples if needed
     if (step % config.training.snapshot_freq == 0 and step > 0) or step == num_train_steps:
